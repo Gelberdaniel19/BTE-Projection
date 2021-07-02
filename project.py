@@ -32,7 +32,7 @@ def get_coords_from_gep():
 	latitude = pm.read_double(addr4 + 0x78)
 	longitude = pm.read_double(addr4 + 0x70)
 	altitude = pm.read_double(addr4 + 0x80)
-	return latitude, longitude, altitude
+	return [float(latitude), float(longitude), float(altitude)]
 
 ''' Bring the minecraft window into focus. '''
 def focus_minecraft():
@@ -57,11 +57,9 @@ def draw_poly(polygon_coords_list):
 
 	# Initial position
 	la, lo, al = polygon_coords_list[0]
-	altitude = f"{al}"
-	altitude = altitude[:altitude.find('.')]
 	send_chat(f"/tpll {la} {lo}")
 	time.sleep(1)
-	send_chat(f"/tp ~ {altitude} ~")
+	send_chat(f"/tp ~ {al} ~")
 	send_chat(f"//pos1")
 	set2 = True
 
@@ -75,23 +73,11 @@ def draw_poly(polygon_coords_list):
 		la, lo, al = coord
 		send_chat(f"/tpll {la} {lo}")
 		time.sleep(0.3)
-		send_chat(f"/tp ~ {altitude} ~")
+		send_chat(f"/tp ~ {al} ~")
 		send_chat(f"//pos{2 if set2 else 1}")
 		send_chat(f"//line sponge")
 		set2 = not set2
 		time.sleep(0.3)
-
-''' Takes a list of coordinates and returns a new list where the
-altitudes are set to the highest measured altitude plus a buffer. '''
-def normalize_altitude(coords, buffer):
-	copied = []
-	maxheight = coords[0][2]
-	for coord in coords[1:]:
-		if coord[2] > maxheight: 
-			maxheight = coord[2]
-	for i in range(len(coords)):
-		copied.append((coords[i][0], coords[i][1], maxheight + buffer))
-	return copied
 
 ''' Selects an area in minecraft entirely enclosing a set
 of coordinates. '''
@@ -109,15 +95,13 @@ def select_coords(coords):
 		if coords[i][2] < ymin: ymin = coords[i][2]
 		if coords[i][2] > ymax: ymax = coords[i][2]
 
-	altmin = str(ymin)[:str(ymin).find('.')]
-	altmax = str(ymax)[:str(ymax).find('.')]
 	send_chat(f"/tpll {xmin} {zmin}")
 	time.sleep(0.3)
-	send_chat(f"/tp Buggo ~ {altmin} ~")
+	send_chat(f"/tp Buggo ~ {ymin} ~")
 	send_chat("//pos1")
 	send_chat(f"/tpll {xmax} {zmax}")
 	time.sleep(0.3)
-	send_chat(f"/tp Buggo ~ {altmax} ~")
+	send_chat(f"/tp Buggo ~ {ymax} ~")
 	send_chat("//pos2")
 
 ''' Extends a selection of sponge some number of blocks down
@@ -136,6 +120,34 @@ def expand_down(distance, block):
 	time.sleep(1)
 	send_chat(f'//replace sponge 0')
 
+def load_from_kml(filepath):
+	with open(filepath, 'r') as f:
+		kml_lines = f.readlines()
+		
+	coords_index = 0
+	for i in range(len(kml_lines)):
+		if "<coordinates>" in kml_lines[i]:
+			coords_index = i + 1
+
+	if coords_index > 0:
+		coords = kml_lines[coords_index].replace('\n', '').replace('\t', '').split(' ')
+
+	global coords_list
+	coords_list.clear()
+	for coord in coords:
+		if len(coord) == 0: continue
+		z, x, y = coord.split(',')
+		coords_list.append([float(x), float(z), float(y)])
+	coords_list.pop()
+
+''' Asks the user for input and then modifies the global coords
+list so that each item has the same altitude. '''
+def set_altitude():
+	global coords_list
+	altitude = easygui.integerbox("Enter the altitude", lowerbound=0, upperbound=10000)
+	for item in coords_list:
+		item[2] = altitude
+
 ### User Input / Application Loop ####################################
 #
 ''' Does something when a key is pressed. Right now only checks if
@@ -146,6 +158,7 @@ def on_press(key):
 
 ''' Does something when a key is released. This is how all the
 commands are triggered. The commands are:
+	F4	- Load coordinate list from KML file
 	F6	- Clears the coordinate list from Google Earth Pro
 	F7	- Adds a coordinate from Google Earth Pro
 	F8	- Draws a polygon in Minecraft based on coordinates
@@ -161,6 +174,11 @@ def on_release(key):
 		print("Stopping...")
 		stop_routine = True
 		
+	# Load coordinates from KML
+	if key == Key.f4:
+		path = easygui.fileopenbox(msg="Select KML file with one polygon", filetypes=["\*.kml"])
+		load_from_kml(path)
+
 	# Clear the coords list
 	if key == Key.f6:
 		coords_list.clear()
@@ -172,7 +190,7 @@ def on_release(key):
 	# Draw polygon
 	if key == Key.f8:
 		if len(coords_list) < 2: return
-		coords_list = normalize_altitude(coords_list, 10)
+		set_altitude()
 		global execution_thread
 		if execution_thread is None or not execution_thread.is_alive():
 			stop_routine = False
@@ -191,6 +209,10 @@ def on_release(key):
 			expand_down(distance, block)
 		except: 
 			return
+
+	# Debugging: Log coord list
+	if key == Key.backspace:
+		print(coords_list)
 		
 ''' Collect keyboard events and don't exit. '''
 with Listener(
