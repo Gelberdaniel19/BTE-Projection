@@ -6,8 +6,9 @@ Right now the only way to run this is by running the python file using Python 3 
 
 # Keybinds
 Delete	Stops the outline drawing on the next cycle
-F6	Reset the coordinate set
-F7	Add a coordinate from Google Earth Pro
-F8	Draw the polygon in Minecraft (Must be tabbed out of Minecraft)
-F9	Select the whole shape
-F10	Project the sponge in the selection down to the ground
+F4  Load coordinate set from KML file, overwriting previous loaded coordinate set
+F6	Clear the coordinate set
+F7	Add a coordinate from Google Earth Pro to the end of the coordinate set
+F8	Draw a shape in Minecraft from the coordinate set (Must be tabbed out of Minecraft)
+F9	Select the whole shape (buggy)
+F10	Project any sponge in the selection down to the ground
